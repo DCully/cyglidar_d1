@@ -17,42 +17,17 @@
 
 #define PAYLOAD_SIZE            6
 
-#define BASE_DEPTH_3D           3000
 #define BASE_DEPTH_2D           10000
 #define BASE_ANGLE_2D           120
 
 #define DISTANCE_MAX_2D         10000
-#define SIZE_MAX                20000
-
-#define INVALID_DATA_2D         16000
-#define LOW_AMPLITUDE_2D        16001
-#define ADC_OVERFLOW_2D         16002
-#define SATURATION_VALUE_2D     16003
-#define BAD_PIXEL_2D            16004
-
-#define TRACKING_VALUE_3D       4001
-#define INVALID_DATA_3D         4080
-#define LOW_AMPLITUDE_3D        4081
-#define ADC_OVERFLOW_3D         4082
-#define SATURATION_VALUE_3D     4083
-#define INTERFERENCE_VALUE_3D   4087
-
-#define ADC_COL_R               173
-#define ADC_COL_G               216
-#define ADC_COL_B               230
-
-#define SAT_COL_R               128
-#define SAT_COL_G               0
-#define SAT_COL_B               128
-
-#define COLOR_MIN               0
-#define COLOR_MAX               255
+#define SCAN_MAX_SIZE           20000
 
 #define RIGHT_ANGLE             90
 #define HALF_ANGLE              180
 #define MATH_PI                 3.14159265
 
-#define DIVISOR                 0.001
+#define MM2M                    0.001
 #define MULTIPLY_100            100
 #define FOCAL_LENGTH            40.5
 
@@ -64,7 +39,7 @@
 #define BYTESET_NUM_3D          3
 
 #define PACKET_HEADER_0         0x5A
-#define PACKET_HEADER_1         0x77        
+#define PACKET_HEADER_1         0x77
 #define PACKET_HEADER_2         0xFF
 
 #define PULSE_LIDAR_TYPE        0
@@ -78,18 +53,13 @@
 #define HEX_SIZE_TWO            8
 #define HEX_SIZE_FOUR           16
 
-static boost::array<uint8_t, 8> PACKET_START_2D = { PACKET_HEADER_0, PACKET_HEADER_1, PACKET_HEADER_2, 0x02, 0x00, 0x01, 0x00, 0x03 };
-static boost::array<uint8_t, 8> PACKET_START_3D = { PACKET_HEADER_0, PACKET_HEADER_1, PACKET_HEADER_2, 0x02, 0x00, 0x08, 0x00, 0x0A };
-static boost::array<uint8_t, 8> PACKET_START_DUAL = { PACKET_HEADER_0, PACKET_HEADER_1, PACKET_HEADER_2, 0x02, 0x00, 0x07, 0x00, 0x05 };
-static boost::array<uint8_t, 8> PACKET_STOP = { PACKET_HEADER_0, PACKET_HEADER_1, PACKET_HEADER_2, 0x02, 0x00, 0x02, 0x00, 0x00 };
+enum eRunMode
+{
+  Mode2D,
+  Mode3D,
+  ModeDual
+};
 
-static boost::array<uint8_t, 8> PACKET_FREQUENCY = { PACKET_HEADER_0, PACKET_HEADER_1, PACKET_HEADER_2, 0x02, 0x00, 0x0F, 0x00, 0x00 };
-static boost::array<uint8_t, 9> PACKET_INTEGRATION_TIME = { PACKET_HEADER_0, PACKET_HEADER_1, PACKET_HEADER_2, 0x03, 0x00, 0x0C, 0x00, 0x00, 0x00 };
-
-static boost::array<char, HEX_SIZE_TWO> MSB_BUFFER, LSB_BUFFER;
-static boost::array<char, HEX_SIZE_FOUR> BINARY_BUFFER;
-
-namespace cyglidar_pcl_driver {
 class cyglidar_pcl
 {
   public:
@@ -105,38 +75,47 @@ class cyglidar_pcl
       /**
         * @brief Default destructor
         */
-      ~cyglidar_pcl();
+      ~cyglidar_pcl()
+      {
+          serial_.close();
+      }
 
       /**
         * @brief Poll the laser to get a new scan. Block until a complete new scan is received or close is called.
-        * @param scan 
         */
-      uint8_t* poll(int version); 
+       uint16_t rvData(uint8_t* outputBuffer, const int BufferSize);
 
       /**
         * @brief Send a packet to run CygLiDAR
         */
-      void packet_run(int version);
+      void packet_run(const eRunMode mode);
 
       /**
         * @brief Send a packet to change a width of the pulse
         */
-      void packet_pulse(int version, int pulse_control, int duration);
+      void packet_duration(const eRunMode mode, const bool setAutoDuration, const uint16_t Duration);
 
       /**
         * @brief Send a packet to assign a frequency level
         */
-      void packet_frequency(int frequency);
+       void packet_frequency(const uint8_t channel);
+
+      /**
+        * @brief Print every element of the array after sending the packet
+        */
+      void packet_confirmation(uint8_t* buffer, int count);
 
       /**
         * @brief Close the driver down and prevent the polling loop from advancing
         */
       void close();
   private:
+      uint8_t CommandBuffer[20];
+      uint8_t payloadBuffer[10];
+      void makeCommand(uint8_t* commandBuffer, uint8_t* Payload, const uint16_t payloadSize);
       std::string port_; ///< @brief The serial port which the driver belongs to
       uint32_t baud_rate_; ///< @brief The baud rate for the serial connection
       boost::asio::serial_port serial_; ///< @brief Actual serial port object for reading/writing to the lidar Scanner
-  };
-}
+};
 
 #endif // CYGLIDAR_H
